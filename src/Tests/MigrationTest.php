@@ -30,7 +30,7 @@ class MigrationTest extends WebTestBase {
     'entity_test_mul' => array(),
     'entity_test_mulrev' => array(),
     'user' => array(),
-    'node' => array('type' => 'article', 'title' => 'foo')
+    'node' => array('type' => 'article', 'title' => 'foo', 'uid' => 1, 'revision_uid' => 1)
   );
 
   /**
