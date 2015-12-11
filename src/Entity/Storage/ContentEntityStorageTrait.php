@@ -3,6 +3,7 @@
 namespace Drupal\multiversion\Entity\Storage;
 
 use Drupal\Core\Cache\CacheBackendInterface;
+use Drupal\Core\Entity\ContentEntityInterface;
 use Drupal\Core\Entity\EntityInterface;
 use Drupal\Core\Entity\EntityStorageException;
 use Drupal\multiversion\Entity\Exception\ConflictException;
@@ -34,6 +35,7 @@ trait ContentEntityStorageTrait {
     }
 
     $revision_alias = 'revision';
+    $workspace_alias = 'workspace';
     if ($this->entityType->isTranslatable()) {
       // Join the revision data table in order to set the delete condition.
       $revision_table = $this->getRevisionDataTable();
@@ -53,8 +55,24 @@ trait ContentEntityStorageTrait {
     // Entities in other workspaces than the active one can only be queried with
     // the Entity Query API and not by the storage handler itself.
     // Just UserStorage can be queried in all workspaces by the storage handler.
-    if (!($this instanceof UserStorageInterface)) {
-      $query->condition("$revision_alias.workspace", $this->getActiveWorkspaceId());
+    if (!$this instanceof UserStorageInterface) {
+      /** @var \Drupal\Core\Entity\Sql\TableMappingInterface $table_mapping */
+      $table_mapping = $this->getTableMapping();
+      /** @var \Drupal\Core\Entity\EntityFieldManager $field_manager */
+      $field_manager = \Drupal::service('entity_field.manager');
+      $base_definitions = $field_manager->getBaseFieldDefinitions($this->entityTypeId);
+
+      $workspace_definition = $base_definitions['workspace'];
+      $workspace_table = $table_mapping->getDedicatedRevisionTableName($workspace_definition);
+      $workspace_column = $table_mapping->getFieldColumnName($workspace_definition, 'target_id');
+
+      if ($revision_id) {
+        $query->join($workspace_table, $workspace_alias, "$workspace_alias.revision_id = revision.{$this->revisionKey} AND $workspace_alias.revision_id = :revisionId", array(':revisionId' => $revision_id));
+      }
+      else {
+        $query->join($workspace_table, $workspace_alias, "$workspace_alias.revision_id = revision.{$this->revisionKey}");
+      }
+      $query->condition("$workspace_alias.$workspace_column", $this->getActiveWorkspaceId());
     }
     return $query;
   }
